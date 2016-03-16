@@ -3,8 +3,7 @@ module main;
 import std.stdio;
 import std.algorithm;
 import std.math;
-
-import std.typecons;
+import std.range;import std.typecons;
 import core.stdc.stdlib;
 import std.exception;
 import std.stdio;
@@ -29,7 +28,7 @@ immutable int BOARD_Y = 50;
 immutable int CELL_X = 50;
 immutable int CELL_Y = 50;
 
-immutable int SIDE = 10;
+immutable int SIDE = 15;
 immutable int LINE = 5;
 immutable long MULT = 4;
 
@@ -172,6 +171,10 @@ void moveHuman (ref Board board, char player)
                 happy_end ();
                 break;
 
+            case ALLEGRO_EVENT_DISPLAY_SWITCH_IN:
+                draw (board);
+                break;
+
             case ALLEGRO_EVENT_MOUSE_BUTTON_UP:
                 int x = current_event.mouse.x;
                 int y = current_event.mouse.y;
@@ -290,7 +293,7 @@ bool moveMouse (ref Board board, char player, int x, int y)
 
 
 
-/*
+
 int estimatePosOne (ref Board board, char player, int crow, int ccol)
 {
     if (board[crow][ccol] != '-')
@@ -324,7 +327,7 @@ int estimatePosOne (ref Board board, char player, int crow, int ccol)
         }
     int es;
     for (int op =0; op<LINE;op++)
-    es += counter[LINE - op-1] * 10 ^^ (LINE - op-1);
+    es += counter[LINE - op-1] * 100 ^^ (LINE - op-1);
     return es;
 }
 
@@ -335,23 +338,51 @@ int estimatePos (ref Board board, char player, int crow, int ccol)
     return estimatePosOne (board, player, crow, ccol) +
         estimatePosOne (board, enemy, crow, ccol)/2;
 }
-*/
 
-long EstimateBoard (ref Board board, char player)
+
+long EstimateMoveBoard (ref Board board, char player, int crow, int ccol)
 {
-    char enemy = cast (char) ('X'+'O'-player);
-    long res = 0;
-    foreach (row;0..SIDE)
-        foreach (col;0..SIDE)
-            res += EstimateFromCell(board,player,row,col) * MULT - EstimateFromCell(board,enemy,row,col);
-     return res;
+    long res;
+    if (board[crow][ccol] != '-')
+        return -1;
+    int [LINE] counter;
+    char enemy = cast (char)('X'+'O'-player);
+    for (int d=0;d<DIRS; d++)
+        for (int shift=-4; shift <=0; shift++)
+        {
+            int row = (crow + shift *Drow[d]);
+            int col = (ccol + shift *Dcol[d]);
+            int we = 0;
+            int bad = 0;
+            for (int num = 0; num < LINE; num++)
+            {
+                if (!valid(row, col) || board[row][col] == enemy)
+                {
+                    bad++;
+                }
+                else if (board[row][col] == player)
+                {
+                    we++;
+                }
+                row += Drow[d];
+                col += Dcol[d];
+            }
+            if (bad == 0)
+                counter[we]++;
+        }
+    long est = 0;
+    for (int op = 0; op<LINE;op++)
+        est += counter[op] * 100L ^^ op;
+    return est;
 }
+
 
 int EstimateFromCell (ref Board board, char player, int row, int col)
 {
     char enemy = cast (char) ('X'+'O'-player);
     int res;
-    foreach(d;0..DIRS)
+    foreach(d;0..
+     DIRS)
     {
         int we=0;
         int crow=row;
@@ -359,7 +390,7 @@ int EstimateFromCell (ref Board board, char player, int row, int col)
         foreach ( step; 0..LINE)
         {
             if (!valid (crow,ccol)  || board[crow][ccol] == enemy)
-            {we += -1; break;}
+            {we = -1; break;}
             we += (board[crow][ccol] == player);
             crow += Drow[d]; ccol += Dcol[d];
         }
@@ -395,35 +426,80 @@ Move pickMoveSaved (ref Board board, char player, int depth)
     return res;
 }
 
+immutable int DEPTH = 7;
+immutable int WIDTHS [DEPTH+1] = [10, 5, 5, 2, 2, 2,2,1];
 Move pickMove (ref Board board, char player, int depth)
 {
+    int i,t,l;
+    int space;
+    space = SIDE*SIDE;
+
+    auto a = new Move [WIDTHS[depth]];
+
+    foreach (ref curMove; a[])
+    {
+        curMove.value = long.min / 2;
+    }
+
     char enemy = cast (char) ('X'+'O'-player);
     auto res = Move (long.min / 2, -1, -1);
     foreach (row;0..SIDE)
         foreach (col;0..SIDE)
             if (board[row][col] == '-')
             {
-                board[row][col] = player;
-                long cur;
-                if (wins(board, player))
-                    cur = long.max / 2;
-                else if (tie(board))
-                    cur=0;
-                else if (depth > 0)
-                    cur = -pickMove (board, enemy, depth-1).value;
-                else
-                    cur = -EstimateBoard (board,enemy);
-                if (res.value < cur)
-                    res = Move(cur,row,col);
-                board[row][col] = '-';
-                scope(exit) {board[row][col] = '-';}
+                auto curValue = EstimateMoveBoard (board, player, row, col) +
+                    EstimateMoveBoard (board, enemy, row, col) ;
+                if (a[].minPos.front.value < curValue)
+                {
+                    a[].minPos.front = Move (curValue, row, col);
+                }
             }
+
+    foreach (curMove; a[])
+    {
+        int row = curMove.row;
+        int col = curMove.col;
+        if (board[row][col] == '-')
+        {
+            board[row][col] = player;
+            long cur;
+            if (wins(board, player))
+                cur = long.max / 2;
+            else if (tie(board))
+                cur=0;
+            else if (depth > 0)
+                cur = -pickMove (board, enemy, depth -1).value;
+            else
+                cur = EstimateBoard (board,player);
+            if (res.value < cur)
+                res = Move(cur,row,col);
+            board[row][col] = '-';
+        }
+    }
+
     return res;
 }
 
+
+long EstimateBoard (ref Board board, char player)
+{
+    char enemy = cast (char) ('X'+'O' - player);
+    long res = 0;
+
+    foreach (row;0..SIDE)
+        foreach (col;0..SIDE)
+            res += EstimateFromCell(board,player,row,col) * MULT - EstimateFromCell(board,enemy,row,col);
+     return res;
+}
+
+
+
+
+
+
 void moveAI2 (ref Board board, char player)
 {
-    auto move = pickMove (board, player, 1);
+    auto move = pickMove (board, player, DEPTH);
     int row = move.row;
     int col = move.col;
     writeln (row + 1, " ", col + 1);
@@ -445,7 +521,7 @@ void moveAI2 (ref Board board, char player)
 
 
 
-/*void moveAI (ref Board board, char player)
+void moveAI (ref Board board, char player)
 {
     int spot=-1;
     int row,col;
@@ -478,7 +554,7 @@ void moveAI2 (ref Board board, char player)
         return;
     }
 }
-*/
+
 
 
 bool valid (int row,int col)
