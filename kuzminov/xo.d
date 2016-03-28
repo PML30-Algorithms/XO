@@ -3,6 +3,8 @@ module main;
 import std.stdio;
 import std.algorithm;
 import std.math;
+
+
 import std.range;import std.typecons;
 import core.stdc.stdlib;
 import std.exception;
@@ -30,7 +32,7 @@ immutable int CELL_Y = 50;
 
 immutable int SIDE = 15;
 immutable int LINE = 5;
-immutable long MULT = 4;
+immutable long MULT = 3;
 
 
 immutable int DIRS = 4;
@@ -327,7 +329,7 @@ int estimatePosOne (ref Board board, char player, int crow, int ccol)
         }
     int es;
     for (int op =0; op<LINE;op++)
-    es += counter[LINE - op-1] * 100 ^^ (LINE - op-1);
+    es += counter[LINE - op-1] * 81 ^^ (LINE - op-1);
     return es;
 }
 
@@ -372,7 +374,7 @@ long EstimateMoveBoard (ref Board board, char player, int crow, int ccol)
         }
     long est = 0;
     for (int op = 0; op<LINE;op++)
-        est += counter[op] * 100L ^^ op;
+        est += counter[op] * 81L ^^ op;
     return est;
 }
 
@@ -418,7 +420,7 @@ Move pickMoveSaved (ref Board board, char player, int depth)
                 else if (depth > 0)
                     cur = -pickMove (board, enemy, depth -1).value;
                 else
-                    cur = EstimateBoard (board,player);
+                    cur = EstimateBoardPlayer (board,player);
                 if (res.value < cur)
                     res = Move(cur,row,col);
                 board[row][col] = '-';
@@ -427,7 +429,7 @@ Move pickMoveSaved (ref Board board, char player, int depth)
 }
 
 immutable int DEPTH = 7;
-immutable int WIDTHS [DEPTH+1] = [10, 5, 5, 2, 2, 2,2,1];
+immutable int WIDTHS [DEPTH+1] = [10,10, 5,  2, 2, 2, 1,1];
 Move pickMove (ref Board board, char player, int depth)
 {
     int i,t,l;
@@ -448,7 +450,7 @@ Move pickMove (ref Board board, char player, int depth)
             if (board[row][col] == '-')
             {
                 auto curValue = EstimateMoveBoard (board, player, row, col) +
-                    EstimateMoveBoard (board, enemy, row, col) ;
+                    EstimateMoveBoard (board, enemy, row, col)/9 ;
                 if (a[].minPos.front.value < curValue)
                 {
                     a[].minPos.front = Move (curValue, row, col);
@@ -470,7 +472,7 @@ Move pickMove (ref Board board, char player, int depth)
             else if (depth > 0)
                 cur = -pickMove (board, enemy, depth -1).value;
             else
-                cur = EstimateBoard (board,player);
+                cur = EstimateBoardPlayer (board,player);
             if (res.value < cur)
                 res = Move(cur,row,col);
             board[row][col] = '-';
@@ -492,7 +494,31 @@ long EstimateBoard (ref Board board, char player)
      return res;
 }
 
+long EstimateBoardPlayer (ref Board board, char player)
+{
+    char enemy = cast (char) ('X'+'O' - player);
+    long res = 0;
 
+    foreach (row;0..SIDE)
+        foreach (col;0..SIDE)
+        {
+            for (int d=0;d<DIRS; d++)
+            {
+                for (int crow;crow<SIDE;crow++)
+                    for (int ccol;ccol< SIDE;ccol++)
+                    {
+                        int x = 10 - std.math.abs (row - crow) - std.math.abs (col - ccol);
+                        if (x < 0) continue;
+                        if (board[row][col] == player)
+                            res += MULT ^^ x;
+                        if (board[row][col] == enemy)
+                            res += (MULT/2) ^^ x;
+                    }
+            }
+            res += EstimateFromCell(board,player,row,col) * MULT + EstimateFromCell(board,enemy,row,col);
+        }
+     return res;
+}
 
 
 
@@ -616,3 +642,5 @@ bool winsCell (ref Board board, char player , int crow, int ccol)
     }
     return false;
 }
+
+/*HELL YEAH*/
