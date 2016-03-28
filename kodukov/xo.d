@@ -14,8 +14,9 @@ import allegro5.allegro_primitives;
 import allegro5.allegro_font;
 import allegro5.allegro_ttf;
 
-immutable int MAX_X = 800;
-immutable int MAX_Y = 600;
+immutable int MAX_X = 1100;
+immutable int MAX_Y = 900;
+immutable int FONT_SIZE = 72;
 
 ALLEGRO_DISPLAY * display;
 ALLEGRO_EVENT_QUEUE * event_queue;
@@ -35,7 +36,7 @@ void init ()
 	event_queue = al_create_event_queue ();
 	enforce (event_queue);
 
-	global_font = al_load_ttf_font ("CONSOLA.TTF", 72, 0);
+	global_font = al_load_ttf_font ("Inconsolata-Regular.ttf", FONT_SIZE, 0);
 
 	al_register_event_source (event_queue, al_get_mouse_event_source ());
 	al_register_event_source (event_queue, al_get_display_event_source (display));
@@ -100,15 +101,18 @@ void draw (const ref Board board)
             }
         }
     if (tie (board))
-       al_draw_text (global_font, al_map_rgb (255,0,0), 680, (300), ALLEGRO_ALIGN_CENTRE, "TIE");
+       al_draw_text (global_font, al_map_rgb (255,0,0), BOARD_X + SIDE * CELL_X + 10,
+                     BOARD_Y + SIDE * CELL_Y / 2 - FONT_SIZE / 2, ALLEGRO_ALIGN_LEFT, "TIE");
     if (wins (board, 'X'))
-       al_draw_text (global_font, al_map_rgb (255,0,0), 680, (300), ALLEGRO_ALIGN_CENTRE, "X WINS");
+       al_draw_text (global_font, al_map_rgb (255,0,0), BOARD_X + SIDE * CELL_X + 10,
+                     BOARD_Y + SIDE * CELL_Y / 2 - FONT_SIZE / 2, ALLEGRO_ALIGN_LEFT, "X WINS");
     if (wins (board, 'O'))
-       al_draw_text (global_font, al_map_rgb (255,0,0), 680, (300), ALLEGRO_ALIGN_CENTRE, "O WINS");
+       al_draw_text (global_font, al_map_rgb (255,0,0), BOARD_X + SIDE * CELL_X + 10,
+                     BOARD_Y + SIDE * CELL_Y / 2 - FONT_SIZE / 2, ALLEGRO_ALIGN_LEFT, "O WINS");
 	al_flip_display ();
 }
 
-immutable int SIDE = 10;
+immutable int SIDE = 15;
 immutable int LINE = 5;
 immutable int DIRS = 4;
 immutable int [DIRS] DROW =[0, +1, +1, +1];
@@ -174,7 +178,7 @@ bool valid (int row, int col)
     return (0 <= row && row < SIDE) && (0 <= col && col < SIDE);
 }
 
-int estimatePosOne (ref Board board, char player, int crow, int ccol)
+long estimatePosOne (ref Board board, char player, int crow, int ccol)
 {
     if (board[crow][ccol] != '.')
     {
@@ -203,8 +207,8 @@ int estimatePosOne (ref Board board, char player, int crow, int ccol)
              counter[we]++;
          }
       }
-      int res = 0;
-      int z = 1;
+      long res = 0;
+      long z = 1;
       for(int i = 0; i < LINE; i++)
       {
           res += counter[i] * z;
@@ -213,7 +217,7 @@ int estimatePosOne (ref Board board, char player, int crow, int ccol)
         return res;
     }
 
-int estimatePos (ref Board board, char player, int crow, int ccol)
+long estimatePos (ref Board board, char player, int crow, int ccol)
 {
     char enemy = cast (char) ('X' + 'O' - player);
     return estimatePosOne (board, player, crow, ccol) +
@@ -225,11 +229,11 @@ void moveAI1(ref Board board, char player)
     char enemy = cast (char) ('X' + 'O' - player);
     int bestrow = 0;
     int bestcol = 0;
-    int bestest = -1;
+    long bestest = -1;
     for (int crow = 0; crow < SIDE; crow++)
         for (int ccol = 0; ccol < SIDE; ccol++)
         {
-            int est = estimatePos (board, player, crow, ccol);
+            long est = estimatePos (board, player, crow, ccol);
             if (bestest < est)
             {
                 bestest = est;
@@ -259,7 +263,22 @@ void moveMouse (ref Board board, int x, int y)
     int col = (x - BOARD_X) / CELL_X;
     if (board[row][col] != '.')
         return;
-    board[row][col] = 'X';
+    board[row][col] = 'O';
+    draw (board);
+    if (wins (board, 'O'))
+    {
+         writeln ("O wins");
+         is_finished = true;
+         return;
+    }
+    if (tie (board))
+    {
+         writeln("draw");
+         is_finished = true;
+         return;
+    }
+
+    moveAI1 (board, 'X');
     draw (board);
     if (wins (board, 'X'))
     {
@@ -273,26 +292,13 @@ void moveMouse (ref Board board, int x, int y)
          is_finished = true;
          return;
     }
-    moveAI1 (board, 'O');
-    draw (board);
-    if (wins (board, 'O'))
-    {
-         writeln ("O wins");
-         is_finished = true;
-         return;
-    }
-    if (tie (board))
-    {
-         writeln("draw");
-         is_finished = true;
-         return;
-   }
 }
 
 void main_loop ()
 {
     Board board;
     initBoard (board);
+    moveAI1 (board, 'X');
     draw (board);
 
 	is_finished = false;
