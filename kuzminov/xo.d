@@ -5,6 +5,9 @@ import std.algorithm;
 import std.math;
 
 
+
+import std.datetime;
+import std.concurrency;
 import std.range;import std.typecons;
 import core.stdc.stdlib;
 import std.exception;
@@ -204,9 +207,14 @@ void moveO (ref Board board)
 
 void main_loop ()
 {
+
     Board board;
     initBoard (board);
     is_finished = false;
+
+
+
+
 	while (true)
 	{
 	    draw (board);
@@ -521,11 +529,50 @@ long EstimateBoardPlayer (ref Board board, char player)
 }
 
 
+void realmoveAI2 (Tid FatherID, Board board, char player)
+{
+  auto move = pickMove (board, player, DEPTH);
+  send(FatherID,move);
+}
 
 
 void moveAI2 (ref Board board, char player)
 {
-    auto move = pickMove (board, player, DEPTH);
+    spawn(&realmoveAI2, thisTid() ,board,player);
+    Move move;
+    float time = 0.01;
+    while (true)
+    {
+        if (receiveTimeout(
+                   1.msecs,(Move n) {move = n;}
+            ))
+            break;
+
+
+            ALLEGRO_EVENT current_event;
+
+            al_wait_for_event_timed(event_queue, &current_event, time);
+
+            switch (current_event.type)
+            {
+                case ALLEGRO_EVENT_DISPLAY_CLOSE:
+                    happy_end ();
+                    break;
+
+
+                case ALLEGRO_EVENT_DISPLAY_SWITCH_IN:
+                    draw (board);
+                    break;
+
+                case ALLEGRO_EVENT_MOUSE_BUTTON_UP:
+                    writeln ("NOT YOUR TURN");
+                    break;
+
+                default:
+                    break;
+            }
+
+    }
     int row = move.row;
     int col = move.col;
     writeln (row + 1, " ", col + 1);
@@ -543,6 +590,7 @@ void moveAI2 (ref Board board, char player)
         is_finished = true;
         return;
     }
+
 }
 
 
@@ -643,4 +691,3 @@ bool winsCell (ref Board board, char player , int crow, int ccol)
     return false;
 }
 
-/*HELL YEAH*/
